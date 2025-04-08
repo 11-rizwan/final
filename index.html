@@ -2,51 +2,62 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Pneumonia Detection Result</title>
+    <title>Diagnosis Result</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <style>
         body {
+            background-color: #f8f9fa;
+            color: #212529;
+            padding: 2rem;
+            transition: background-color 0.3s, color 0.3s;
+        }
+        .dark-mode {
             background-color: #121212;
-            color: #f0f0f0;
-            padding: 20px;
+            color: #ffffff;
         }
-        .card {
+        .result-container {
+            max-width: 700px;
+            margin: auto;
+            background-color: #fff;
+            padding: 2rem;
+            border-radius: 10px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+            transition: background-color 0.3s;
+        }
+        .dark-mode .result-container {
             background-color: #1e1e1e;
-            border: none;
-            border-radius: 1rem;
-            box-shadow: 0 0 20px rgba(255, 255, 255, 0.1);
         }
-        .btn-back {
-            background-color: #3a3a3a;
-            color: #fff;
-        }
-        .btn-back:hover {
-            background-color: #5c5c5c;
+        img.heatmap {
+            max-width: 100%;
+            border-radius: 8px;
+            margin-top: 1.5rem;
+            box-shadow: 0 0 10px rgba(0,0,0,0.3);
         }
     </style>
 </head>
 <body>
-    <div class="container mt-5">
-        <div class="card p-4">
-            <h2 class="text-center mb-4">Diagnosis Result</h2>
-            <p><strong>Patient Name:</strong> {{ name }}</p>
-            <p><strong>Patient Age:</strong> {{ age }}</p>
-            <p><strong>Diagnosis:</strong> {{ result }}</p>
-            <p><strong>Confidence:</strong> {{ confidence }}%</p>
+    <div class="result-container">
+        <h2 class="text-center mb-4">Diagnosis Result</h2>
+        <p><strong>Patient Name:</strong> {{ name }}</p>
+        <p><strong>Age:</strong> {{ age }}</p>
+        <p><strong>Diagnosis:</strong> {{ diagnosis }}</p>
+        <p><strong>Confidence:</strong> {{ confidence }}%</p>
 
-            {% if result != 'Normal' %}
-            <p><strong>Infection Area:</strong> {{ percentage }}%</p>
-            <div class="text-center">
-                <h5>Highlighted Affected Area (Grad-CAM)</h5>
-                <img src="{{ url_for('static', filename='uploads/heatmap.png') }}" alt="Grad-CAM Heatmap" class="img-fluid mt-2"/>
-            </div>
-            {% endif %}
+        {% if diagnosis == "Pneumonia Detected" %}
+            <p><strong>Infection Area:</strong> {{ affected_percentage }}%</p>
+            <img src="{{ heatmap }}" alt="Grad-CAM Heatmap" class="heatmap">
+        {% else %}
+            <p><i>No infection detected. Stay healthy!</i></p>
+        {% endif %}
 
-            <div class="text-center mt-4">
-                <a href="/" class="btn btn-back">Back to Home</a>
-            </div>
-        </div>
+        <a href="{{ report }}" target="_blank" class="btn btn-success mt-4">Download PDF Report</a>
     </div>
+
+    <script>
+        // Optional: Enable dark mode automatically based on system preference
+        if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+            document.body.classList.add('dark-mode');
+        }
+    </script>
 </body>
 </html>

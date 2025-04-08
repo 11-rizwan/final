@@ -1,9 +1,9 @@
 
-from flask import Flask, render_template, request, redirect, url_for
+from flask import Flask, render_template, request, redirect, url_for ,jsonify
 import os
 import numpy as np
-from tensorflow.keras.models import load_model
-from tensorflow.keras.preprocessing import image
+from keras.models import load_model
+from keras.preprocessing import image
 from werkzeug.utils import secure_filename
 from gradcam import get_img_array, make_gradcam_heatmap, save_and_display_gradcam
 import cv2
@@ -11,7 +11,7 @@ import cv2
 app = Flask(__name__)
 app.config['UPLOAD_FOLDER'] = 'static/uploads/'
 
-model = load_model('model/pneumonia_model.h5')
+model = load_model('pneumonia_efficientnetb5_model.h5')
 last_conv_layer_name = 'top_conv'  # EfficientNetB5 last conv layer
 
 def preprocess_image(img_path):
@@ -32,10 +32,10 @@ def index():
 
 @app.route('/predict', methods=['POST'])
 def predict():
-    if 'file' not in request.files:
+    if 'image' not in request.files:
         return redirect(request.url)
 
-    file = request.files['file']
+    file = request.files['image']
     name = request.form.get('name')
     age = request.form.get('age')
 
@@ -58,9 +58,12 @@ def predict():
             heatmap = make_gradcam_heatmap(img_for_gradcam, model, last_conv_layer_name)
             save_and_display_gradcam(file_path, heatmap)
             percentage = calculate_infection_percentage(heatmap)
-
-        return render_template("result.html", name=name, age=age, result=result,
+            return render_template("result.html", name=name, age=age, result=result,
                                confidence=confidence, percentage=percentage)
 
+            
+                             
+            
 if __name__ == '__main__':
     app.run(debug=True)
+

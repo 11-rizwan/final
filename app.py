@@ -1,151 +1,98 @@
-"""from flask import Flask, render_template, request, jsonify
-import numpy as np
-import tensorflow.lite as tflite
-from tensorflow.keras.preprocessing import image
+from flask import Flask, render_template, request, redirect, url_for, send_file
 import os
-
-app = Flask(__name__)
-
-# Load TF-Lite model
-interpreter = tflite.Interpreter(model_path="pneumonia_model.tflite")
-interpreter.allocate_tensors()
-
-# Get input and output tensor details
-input_details = interpreter.get_input_details()
-output_details = interpreter.get_output_details()
-
-# Function to preprocess an image
-def preprocess_image(img_path):
-    img = image.load_img(img_path, target_size=(150, 150))  # Resize
-    img_array = image.img_to_array(img) / 255.0  # Normalize
-    img_array = np.expand_dims(img_array, axis=0).astype(np.float32)  # Expand dims & convert
-    return img_array
-
-# Home route (renders HTML page)
-@app.route('/')
-def home():
-    return render_template('index.html')
-
-# Prediction API
-@app.route('/predict', methods=['POST'])
-def predict():
-    if 'file' not in request.files:
-        return jsonify({"error": "No file uploaded"}), 400
-    
-    file = request.files['file']
-    file_path = os.path.join("static/uploads", file.filename)
-    file.save(file_path)
-
-    # Preprocess the image
-    img_array = preprocess_image(file_path)
-
-    # Run inference with TF-Lite model
-    interpreter.set_tensor(input_details[0]['index'], img_array)
-    interpreter.invoke()
-    prediction = interpreter.get_tensor(output_details[0]['index'])[0][0]
-
-    # Interpret results
-    result = "Pneumonia Detected" if prediction > 0.5 else "Normal"
-
-    return render_template('index.html', prediction=result, confidence=f"{prediction:.4f}", image_url=file_path)
-
-if __name__ == '__main__':
-    app.run(debug=True)
-
-"""
-from flask import Flask, render_template, request,jsonify, send_file
 import numpy as np
-import tensorflow as tf
-import os
+from keras.models import load_model
+from keras.preprocessing import image
+from werkzeug.utils import secure_filename
+from gradcam import get_img_array, make_gradcam_heatmap, save_and_display_gradcam
+import cv2
 from reportlab.pdfgen import canvas
 
 app = Flask(__name__)
+app.config['UPLOAD_FOLDER'] = 'static/uploads/'
+app.config['GRADCAM_FOLDER'] = 'static/gradcam/'
+app.config['PDF_FOLDER'] = 'static/reports/'
 
-# Load the TFLite model
-interpreter = tf.lite.Interpreter(model_path="pneumonia_model.tflite")
-interpreter.allocate_tensors()
+model = load_model('pneumonia_efficientnetb5_model.h5')
+last_conv_layer_name = 'top_conv'
 
-input_details = interpreter.get_input_details()
-output_details = interpreter.get_output_details()
-
-UPLOAD_FOLDER = "static/uploads"
-RESULTS_FOLDER = "static/results"
-REPORTS_FOLDER = "static/reports"
-
-os.makedirs(UPLOAD_FOLDER, exist_ok=True)
-os.makedirs(RESULTS_FOLDER, exist_ok=True)
-os.makedirs(REPORTS_FOLDER, exist_ok=True)
-
-def preprocess_image(image_path):
-    from keras._tf_keras.keras.preprocessing import image
-    img = image.load_img(image_path, target_size=(150, 150))
+def preprocess_image(img_path):
+    img = image.load_img(img_path, target_size=(224, 224))
     img_array = image.img_to_array(img) / 255.0
     img_array = np.expand_dims(img_array, axis=0)
-    return img_array.astype(np.float32)
+    return img_array
+
+def calculate_infection_percentage(heatmap):
+    threshold = 0.6
+    infected_area = np.sum(heatmap > threshold)
+    total_area = heatmap.shape[0] * heatmap.shape[1]
+    return round((infected_area / total_area) * 100, 2)
+
+def generate_pdf(name, age, diagnosis, confidence, percentage, image_path):
+    os.makedirs(app.config['PDF_FOLDER'], exist_ok=True)
+    pdf_path = os.path.join(app.config['PDF_FOLDER'], f"{name}_report.pdf")
+    c = canvas.Canvas(pdf_path)
+    c.setFont("Helvetica", 14)
+    c.drawString(100, 800, f"Pneumonia Detection Report")
+    c.drawString(100, 780, f"Name: {name}")
+    c.drawString(100, 760, f"Age: {age}")
+    c.drawString(100, 740, f"Diagnosis: {diagnosis}")
+    c.drawString(100, 720, f"Confidence: {confidence}%")
+    if diagnosis != 'Normal':
+        c.drawString(100, 700, f"Infection Percentage: {percentage}%")
+    if os.path.exists(image_path):
+        c.drawImage(image_path, 100, 400, width=300, height=300)
+    c.save()
+    return pdf_path
 
 @app.route('/')
 def index():
     return render_template('index.html')
 
-@app.route('/upload', methods=['POST'])
-def upload_image():
-    if 'file' not in request.files:
-        return "No file uploaded", 400
+@app.route('/predict', methods=['POST'])
+def predict():
+    if 'image' not in request.files:
+        return redirect(request.url)
 
-    file = request.files['file']
-    filename = file.filename
-    file_path = os.path.join(UPLOAD_FOLDER, filename)
-    file.save(file_path)
+    file = request.files['image']
+    name = request.form.get('name')
+    age = request.form.get('age')
 
+    if file.filename == '':
+        return redirect(request.url)
 
-    try:
+    if file:
+        filename = secure_filename(file.filename)
+        file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+        os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
+        file.save(file_path)
+
         img_array = preprocess_image(file_path)
-        interpreter.set_tensor(input_details[0]['index'], img_array)
-        interpreter.invoke()
-        prediction = interpreter.get_tensor(output_details[0]['index'])[0][0]
+        prediction = model.predict(img_array)[0][0]
+        result = "Pneumonia" if prediction > 0.5 else "Normal"
+        confidence = round(prediction * 100, 2) if prediction > 0.5 else round((1 - prediction) * 100, 2)
 
-        diagnosis = "Pneumonia Detected" if prediction > 0.5 else "Normal"
-        confidence_percentage = round(prediction * 100, 2)
-        affected_percentage = np.random.uniform(10, 50)
+        percentage = 0
+        gradcam_path = None
 
-    # Get patient details
-        patient_name = request.form.get("name", "Unknown")
-        patient_age = request.form.get("age", "N/A")
-        patient_gender = request.form.get("gender", "N/A")
+        if result != "Normal":
+            img_for_gradcam = get_img_array(file_path, size=(224, 224))
+            heatmap = make_gradcam_heatmap(img_for_gradcam, model, last_conv_layer_name)
+            gradcam_path = os.path.join(app.config['GRADCAM_FOLDER'], f"gradcam_{filename}")
+            os.makedirs(app.config['GRADCAM_FOLDER'], exist_ok=True)
+            save_and_display_gradcam(file_path, heatmap, output_path=gradcam_path)
+            percentage = calculate_infection_percentage(heatmap)
 
-        report_path = generate_pdf_report(
-            filename, diagnosis, confidence_percentage, affected_percentage, patient_name, patient_age, patient_gender
-        )
+        pdf_path = generate_pdf(name, age, result, confidence, percentage, gradcam_path if gradcam_path else file_path)
 
-        return jsonify( {
-            "diagnosis": diagnosis,
-            "confidence": f"{confidence_percentage}%",
-            "affected_percentage": f"{round(affected_percentage, 2)}%",
-            "report": report_path
-        })
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        return render_template("result.html", name=name, age=age, result=result,
+                               confidence=confidence, percentage=percentage, 
+                               image_path=gradcam_path if gradcam_path else None,
+                               pdf_path=pdf_path)
 
-def generate_pdf_report(filename, diagnosis, confidence, affected_percentage, name, age, gender):
-    report_path = os.path.join(REPORTS_FOLDER, f"{filename}.pdf")
-    c = canvas.Canvas(report_path)
-    c.setFont("Helvetica", 14)
-
-    c.drawString(100, 770, "Pneumonia Detection Report")
-    c.line(100, 765, 400, 765)
-    c.drawString(100, 740, f"Patient Name: {name}")
-    c.drawString(100, 720, f"Age: {age}")
-    c.drawString(100, 700, f"Gender: {gender}")
-    c.drawString(100, 680, f"Diagnosis: {diagnosis}")
-    c.drawString(100, 660, f"Confidence: {confidence}%")
-    c.drawString(100, 640, f"Affected Area: {affected_percentage}%")
-
-    c.save()
-    return report_path
-
-@app.route('/download_report/<filename>')
+@app.route('/download/<filename>')
 def download_report(filename):
-    return send_file(os.path.join(REPORTS_FOLDER, filename), as_attachment=True)
+    return send_file(os.path.join(app.config['PDF_FOLDER'], filename), as_attachment=True)
 
 if __name__ == '__main__':
     app.run(debug=True)

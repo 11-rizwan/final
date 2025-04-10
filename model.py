@@ -75,24 +75,3 @@ history = model.fit(
 # Save the final model
 model.save("pneumonia_efficientnetb5_model.h5")
 
-"""
-Your training script has been fully upgraded to use EfficientNetB5, which offers better accuracy and performance. It also includes:
-
-Proper data augmentation
-
-Global average pooling for Grad-CAM compatibility (named gap_layer)
-
-Two dense layers for improved classification
-
-Model checkpointing and early stopping
-
-
-Let me know if you want:
-
-Fine-tuning enabled for deeper training
-
-A smaller version using EfficientNetB0
-
-A custom callback for logging or visualization during training
-
-"""

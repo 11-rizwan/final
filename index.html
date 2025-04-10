@@ -1,63 +1,28 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <title>Diagnosis Result</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <style>
-        body {
-            background-color: #f8f9fa;
-            color: #212529;
-            padding: 2rem;
-            transition: background-color 0.3s, color 0.3s;
-        }
-        .dark-mode {
-            background-color: #121212;
-            color: #ffffff;
-        }
-        .result-container {
-            max-width: 700px;
-            margin: auto;
-            background-color: #fff;
-            padding: 2rem;
-            border-radius: 10px;
-            box-shadow: 0 0 10px rgba(0,0,0,0.1);
-            transition: background-color 0.3s;
-        }
-        .dark-mode .result-container {
-            background-color: #1e1e1e;
-        }
-        img.heatmap {
-            max-width: 100%;
-            border-radius: 8px;
-            margin-top: 1.5rem;
-            box-shadow: 0 0 10px rgba(0,0,0,0.3);
-        }
-    </style>
+  <meta charset="UTF-8">
+  <title>Pneumonia Detection</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
 </head>
-<body>
-    <div class="result-container">
-        <h2 class="text-center mb-4">Diagnosis Result</h2>
-        <p><strong>Patient Name:</strong> {{ name }}</p>
-        <p><strong>Age:</strong> {{ age }}</p>
-        <p><strong>Diagnosis:</strong> {{ diagnosis }}</p>
-        <p><strong>Confidence:</strong> {{ confidence }}%</p>
-
-        {% if diagnosis == "Pneumonia Detected" %}
-            <p><strong>Infection Area:</strong> {{ affected_percentage }}%</p>
-            <img src="{{ heatmap }}" alt="Grad-CAM Heatmap" class="heatmap">
-        {% else %}
-            <p><i>No infection detected. Stay healthy!</i></p>
-        {% endif %}
-
-        <a href="{{ report }}" target="_blank" class="btn btn-success mt-4">Download PDF Report</a>
-    </div>
-
-    <script>
-        // Optional: Enable dark mode automatically based on system preference
-        if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
-            document.body.classList.add('dark-mode');
-        }
-    </script>
+<body class="bg-light">
+  <div class="container p-5 mt-4 bg-white rounded shadow">
+    <h2 class="mb-4 text-center">Pneumonia Detection</h2>
+    <form method="POST" action="/predict" enctype="multipart/form-data">
+      <div class="mb-3">
+        <label class="form-label">Patient Name</label>
+        <input type="text" class="form-control" name="name" required>
+      </div>
+      <div class="mb-3">
+        <label class="form-label">Age</label>
+        <input type="number" class="form-control" name="age" required>
+      </div>
+      <div class="mb-3">
+        <label class="form-label">Upload Chest X-Ray</label>
+        <input type="file" class="form-control" name="image" accept="image/*" required>
+      </div>
+      <button type="submit" class="btn btn-primary">Submit</button>
+    </form>
+  </div>
 </body>
 </html>
